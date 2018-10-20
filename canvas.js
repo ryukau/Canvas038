@@ -325,27 +325,57 @@ class RadioButton {
 }
 
 class NumberInput {
-  constructor(parent, label, value, min, max, step, onInputFunc) {
+  constructor(
+    parent,
+    label,
+    value,
+    min,
+    max,
+    step,
+    onInputFunc,
+    logKnob = false
+  ) {
     this.defaultValue = value
     this.min = min
     this.max = max
     this.step = step
+    this.logKnob = logKnob
     this.onInputFunc = onInputFunc
 
     this.div = document.createElement("div")
     this.div.className = "numberInput"
+    parent.appendChild(this.div)
+
     this.divLabel = document.createElement("div")
     this.divLabel.className = "numberInputLabel"
     this.divLabel.textContent = label
     this.div.appendChild(this.divLabel)
-    this.range = this.addInput("range", value, min, max, step)
+
+    this.range = this.addInput("range", 0, 0, 1, 0.001)
     this.range.className = "numberInputRange"
+    this.div.appendChild(this.range)
+
+    this.valueRange = Math.abs(this.max - this.min)
+    this.maxKnobValue = 6
+    this.maxKnobValueExp = 2 ** this.maxKnobValue - 1
+    this.setRangeValue(value)
+
     this.number = this.addInput("number", value, min, max, step)
     this.number.className = "numberInputNumber"
-    parent.appendChild(this.div)
+    this.div.appendChild(this.number)
 
-    this.range.addEventListener("change", (event) => this.onInput(event), false)
-    this.number.addEventListener("change", (event) => this.onInput(event), false)
+    this.range.addEventListener(
+      "input", (event) => this.onInputRange(event), false)
+    this.number.addEventListener(
+      "change", (event) => this.onInputNumber(event), false)
+  }
+
+  setRangeValue(value) {
+    this.range.value = this.logKnob
+      ? Math.log2(
+        this.maxKnobValueExp * (value - this.min) / (this.max - this.min) + 1)
+      / this.maxKnobValue
+      : (value - this.min) / (this.max - this.min)
   }
 
   clamp(value) {
@@ -355,10 +385,20 @@ class NumberInput {
     return Math.max(this.min, Math.min(value, this.max))
   }
 
-  onInput(event) {
+  onInputRange(event) {
     var value = this.clamp(event.target.valueAsNumber)
-    this.range.value = value
-    this.number.value = value
+
+    this.number.value = this.logKnob
+      ? (2 ** (this.range.value * this.maxKnobValue) - 1) * this.valueRange
+      / this.maxKnobValueExp + this.min
+      : this.range.value * this.valueRange + this.min
+
+    this.onInputFunc(this.number.value)
+  }
+
+  onInputNumber(event) {
+    var value = this.clamp(event.target.valueAsNumber)
+    this.setRangeValue(value)
     this.onInputFunc(value)
   }
 
@@ -367,16 +407,15 @@ class NumberInput {
   }
 
   set value(value) {
-    this.clamp(value)
-    this.range.value = value
+    var value = this.clamp(value)
     this.number.value = value
+    this.setRangeValue(value)
+    this.onInputFunc(value)
   }
 
   random() {
     var randomStep = Math.floor(Math.random() * (this.max - this.min) / this.step)
-    var value = randomStep * this.step + this.min
-    this.range.value = value
-    this.number.value = value
+    this.value = randomStep * this.step + this.min
   }
 
   addInput(type, value, min, max, step) {
